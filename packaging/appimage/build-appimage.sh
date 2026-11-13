@@ -34,8 +34,8 @@ chmod +x "${LINUXDEPLOY}" "${LINUXDEPLOY_QT}"
 
 # 3. Bundle Qt6, QML, and core binary dependencies
 export QML_SOURCES_PATHS="${ROOT_DIR}/qml"
-export EXTRA_PLATFORM_PLUGINS="libqwayland-egl.so;libqwayland-generic.so;libqxcb.so"
-export EXTRA_QT_MODULES="iconengines;imageformats;multimedia;wayland-shell-integration;wayland-graphics-integration-client;wayland-decoration-client"
+export EXTRA_PLATFORM_PLUGINS="libqwayland-egl.so;libqwayland-generic.so;libqxcb.so;libqoffscreen.so"
+export EXTRA_QT_MODULES="multimedia;svg;wayland"
 
 "${LINUXDEPLOY}" \
   --appdir "${APPDIR}" \
@@ -43,6 +43,16 @@ export EXTRA_QT_MODULES="iconengines;imageformats;multimedia;wayland-shell-integ
   --desktop-file "${APPDIR}/usr/share/applications/v4l2-passthru.desktop" \
   --icon-file "${APPDIR}/usr/share/icons/hicolor/scalable/apps/v4l2-passthru.svg" \
   --plugin qt
+
+# Ensure Wayland client buffer integration (Qt6WaylandEglClientHwIntegration) and SVG icon engine plugins are bundled
+QT_PLUGINS_DIR="$(qmake6 -query QT_INSTALL_PLUGINS 2>/dev/null || qmake -query QT_INSTALL_PLUGINS 2>/dev/null || echo "${QT_PLUGIN_PATH%%:*}")"
+for qt_plugin_dir in wayland-graphics-integration-client iconengines; do
+  if [[ -d "${QT_PLUGINS_DIR}/${qt_plugin_dir}" ]]; then
+    mkdir -p "${APPDIR}/usr/plugins/${qt_plugin_dir}"
+    cp -aL "${QT_PLUGINS_DIR}/${qt_plugin_dir}/." "${APPDIR}/usr/plugins/${qt_plugin_dir}/"
+    "${LINUXDEPLOY}" --appdir "${APPDIR}" --deploy-deps-only "${APPDIR}/usr/plugins/${qt_plugin_dir}"
+  fi
+done
 
 # 4. Bundle required GStreamer plugins and scanner
 GST_PLUGIN_DIR="$(pkg-config --variable=pluginsdir gstreamer-1.0)"
@@ -79,14 +89,19 @@ fi
 
 "${LINUXDEPLOY}" --appdir "${APPDIR}" --deploy-deps-only "${APPDIR}/usr/lib/gstreamer-1.0"
 
+# Do not bundle libsystemd.so*; newer host libraries (PipeWire SPA / Mesa / libmount)
+# require host symbol versions like LIBSYSTEMD_251 not present in Ubuntu 22.04's libsystemd.
+rm -f "${APPDIR}/usr/lib/libsystemd.so"*
+
 # 5. Add AppRun hook so GStreamer uses bundled plugins and an isolated registry cache
 mkdir -p "${APPDIR}/apprun-hooks"
 cat > "${APPDIR}/apprun-hooks/gstreamer-env.sh" <<'EOF'
 #!/bin/sh
-export GST_PLUGIN_SYSTEM_PATH_1_0="$APPDIR/usr/lib/gstreamer-1.0"
-export GST_PLUGIN_PATH_1_0="$APPDIR/usr/lib/gstreamer-1.0"
-if [ -x "$APPDIR/usr/libexec/gstreamer-1.0/gst-plugin-scanner" ]; then
-  export GST_PLUGIN_SCANNER_1_0="$APPDIR/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
+ROOT_APPDIR="${APPDIR:-${this_dir:-$(cd "$(dirname "$0")/.." && pwd)}}"
+export GST_PLUGIN_SYSTEM_PATH_1_0="$ROOT_APPDIR/usr/lib/gstreamer-1.0"
+export GST_PLUGIN_PATH_1_0="$ROOT_APPDIR/usr/lib/gstreamer-1.0"
+if [ -x "$ROOT_APPDIR/usr/libexec/gstreamer-1.0/gst-plugin-scanner" ]; then
+  export GST_PLUGIN_SCANNER_1_0="$ROOT_APPDIR/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
 fi
 export GST_REGISTRY_1_0="${XDG_CACHE_HOME:-$HOME/.cache}/v4l2-passthru-gst-registry.bin"
 EOF

@@ -129,6 +129,15 @@ jobs:
           chmod +x packaging/appimage/build-appimage.sh
           ./packaging/appimage/build-appimage.sh "${VERSION}" dist-appimage
 
+      - name: Verify AppImage contents and headless launch
+        run: |
+          QT_QPA_PLATFORM=offscreen ./dist-appimage/v4l2-passthru-*-x86_64.AppImage --appimage-extract-and-run --help
+          ./dist-appimage/v4l2-passthru-*-x86_64.AppImage --appimage-extract >/dev/null
+          test -f squashfs-root/usr/plugins/wayland-graphics-integration-client/libqt-plugin-wayland-egl.so
+          test -f squashfs-root/usr/lib/gstreamer-1.0/libgstvideo4linux2.so
+          ! ls squashfs-root/usr/lib/libsystemd.so* >/dev/null 2>&1
+          rm -rf squashfs-root
+
       - name: Upload AppImage build artifacts
         uses: actions/upload-artifact@v4
         with:
