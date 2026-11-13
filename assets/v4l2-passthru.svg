@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="V4L2 Passthru icon">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141821" />
+      <stop offset="100%" stop-color="#1E2636" />
+    </linearGradient>
+    <linearGradient id="accentGrad" gradientUnits="userSpaceOnUse" x1="126" y1="190" x2="272" y2="288">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#22C55E" />
+    </linearGradient>
+    <linearGradient id="frameGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F3F4F6" />
+      <stop offset="100%" stop-color="#CBD5E1" />
+    </linearGradient>
+  </defs>
+
+  <!-- App badge background -->
+  <rect x="24" y="24" width="464" height="464" rx="104" fill="url(#bgGrad)" stroke="#2E3748" stroke-width="8" />
+
+  <!-- Widescreen capture monitor frame (16:9 proportion) -->
+  <rect x="86" y="132" width="340" height="214" rx="26" fill="#0B0E14" stroke="url(#frameGrad)" stroke-width="20" />
+
+  <!-- Monitor stand -->
+  <path d="M214 356 L214 390 M298 356 L298 390 M174 392 L338 392"
+        fill="none" stroke="url(#frameGrad)" stroke-width="20" stroke-linecap="round" />
+
+  <!-- Passthrough signal arrow + play chevron -->
+  <path d="M126 239 L198 239"
+        fill="none" stroke="url(#accentGrad)" stroke-width="22" stroke-linecap="round" />
+  <path d="M188 190 L272 239 L188 288 Z"
+        fill="url(#accentGrad)" stroke="url(#accentGrad)" stroke-width="10" stroke-linejoin="round" />
+
+  <!-- Audio passthrough arcs inside right side of frame -->
+  <path d="M306 205 A42 42 0 0 1 306 273"
+        fill="none" stroke="#22C55E" stroke-width="20" stroke-linecap="round" />
+  <path d="M346 177 A78 78 0 0 1 346 301"
+        fill="none" stroke="#38BDF8" stroke-width="20" stroke-linecap="round" />
+
+  <!-- Live status indicator dot -->
+  <circle cx="386" cy="172" r="14" fill="#22C55E" />
+</svg>

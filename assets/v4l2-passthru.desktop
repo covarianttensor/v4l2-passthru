@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=V4L2 Passthru
+Comment=Low-latency V4L2 video and audio passthrough viewer
+Exec=v4l2-passthru
+Icon=v4l2-passthru
+Terminal=false
+Categories=AudioVideo;Video;Recorder;
+Keywords=v4l2;uvc;capture;passthrough;pipewire;

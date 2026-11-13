@@ -1,0 +1,121 @@
+name: Build & Release Arch Package
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-arch-package:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --user root
+
+    steps:
+      - name: Initialize Arch keyring and install build/runtime dependencies
+        run: |
+          pacman-key --init
+          pacman-key --populate archlinux
+          pacman -Syu --noconfirm \
+            base-devel git cmake pkgconf \
+            alsa-lib gst-plugin-pipewire gst-plugins-base-libs gst-plugins-good gstreamer \
+            hicolor-icon-theme qt6-base qt6-declarative qt6-multimedia qt6-multimedia-ffmpeg \
+            qt6-svg systemd-libs
+
+      - name: Checkout tagged source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git safe.directory and extract version
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Build Arch pacman package with makepkg
+        run: |
+          useradd -m builder
+          mkdir -p /build/pkg /build/out
+          git archive --format=tar.gz --prefix="v4l2-passthru-${VERSION}/" HEAD \
+            -o "/build/pkg/v4l2-passthru-${VERSION}.tar.gz"
+
+          cp PKGBUILD /build/pkg/PKGBUILD
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" /build/pkg/PKGBUILD
+          sed -i "s|^url=.*|url='https://github.com/${{ github.repository }}'|" /build/pkg/PKGBUILD
+
+          TAR_SHA256=$(sha256sum "/build/pkg/v4l2-passthru-${VERSION}.tar.gz" | awk '{print $1}')
+          sed -i "s/^sha256sums=.*/sha256sums=('${TAR_SHA256}')/" /build/pkg/PKGBUILD
+
+          chown -R builder:builder /build
+          su builder -c "cd /build/pkg && makepkg -f --noconfirm"
+
+          cp /build/pkg/*.pkg.tar.zst /build/out/
+          cp "/build/pkg/v4l2-passthru-${VERSION}.tar.gz" /build/out/
+          (cd /build/out && sha256sum *.pkg.tar.zst > "v4l2-passthru-${VERSION}-x86_64.pkg.tar.zst.sha256")
+          PKG_FILE=$(basename /build/out/*.pkg.tar.zst)
+          echo "PKG_FILE=$PKG_FILE" >> "$GITHUB_ENV"
+
+      - name: Prepare release notes with install instructions
+        run: |
+          python3 -c '
+          import os, textwrap
+
+          repo = "${{ github.repository }}"
+          tag = os.environ["GITHUB_REF_NAME"]
+          ver = os.environ["VERSION"]
+          pkg = os.environ["PKG_FILE"]
+          sha_file = f"v4l2-passthru-{ver}-x86_64.pkg.tar.zst.sha256"
+
+          notes = textwrap.dedent(f"""\
+          ## V4L2 Passthru {tag}
+
+          Low-latency C++20 / Qt6 / QML desktop passthrough viewer for USB V4L2/UVC video capture cards and PipeWire/PulseAudio audio streams.
+
+          ### Arch Linux Installation (`pacman`)
+
+          1. Download `{pkg}` and `{sha_file}` from the release assets below (or via `curl`):
+
+             ```bash
+             curl -LO "https://github.com/{repo}/releases/download/{tag}/{pkg}"
+             curl -LO "https://github.com/{repo}/releases/download/{tag}/{sha_file}"
+             sha256sum -c "{sha_file}"
+             ```
+
+          2. Install with `pacman` (automatically resolves Qt6, GStreamer, PipeWire, and ALSA dependencies):
+
+             ```bash
+             sudo pacman -U "./{pkg}"
+             ```
+
+          3. Launch from your application menu (**V4L2 Passthru**) or terminal:
+
+             ```bash
+             v4l2-passthru
+             ```
+
+          ### Build from Source
+
+          See the [README](https://github.com/{repo}/blob/{tag}/README.md#option-3-build-from-source-cmake) for manual CMake and `makepkg` build instructions.
+          """)
+
+          with open("/tmp/release-notes.md", "w", encoding="utf-8") as f:
+              f.write(notes)
+          '
+
+      - name: Create GitHub Release and upload Arch package
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "V4L2 Passthru ${GITHUB_REF_NAME}"
+          body_path: /tmp/release-notes.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: |
+            /build/out/*.pkg.tar.zst
+            /build/out/*.sha256
+            /build/out/*.tar.gz
