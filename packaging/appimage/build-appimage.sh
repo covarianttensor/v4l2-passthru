@@ -3,13 +3,15 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VERSION="${1:-0.1.1}"
-OUT_DIR="${2:-${ROOT_DIR}/dist-appimage}"
+OUT_DIR_ARG="${2:-${ROOT_DIR}/dist-appimage}"
+mkdir -p "${OUT_DIR_ARG}"
+OUT_DIR="$(cd "${OUT_DIR_ARG}" && pwd)"
 WORK_DIR="${ROOT_DIR}/build-appimage"
 APPDIR="${WORK_DIR}/AppDir"
 TOOLS_DIR="${WORK_DIR}/tools"
 
 rm -rf "${WORK_DIR}"
-mkdir -p "${APPDIR}" "${TOOLS_DIR}" "${OUT_DIR}"
+mkdir -p "${APPDIR}" "${TOOLS_DIR}"
 
 export APPIMAGE_EXTRACT_AND_RUN=1
 
@@ -33,7 +35,7 @@ chmod +x "${LINUXDEPLOY}" "${LINUXDEPLOY_QT}"
 # 3. Bundle Qt6, QML, and core binary dependencies
 export QML_SOURCES_PATHS="${ROOT_DIR}/qml"
 export EXTRA_PLATFORM_PLUGINS="libqwayland-egl.so;libqwayland-generic.so;libqxcb.so"
-export EXTRA_QT_PLUGINS="iconengines;imageformats;multimedia;wayland-shell-integration;wayland-graphics-integration-client;wayland-decoration-client"
+export EXTRA_QT_MODULES="iconengines;imageformats;multimedia;wayland-shell-integration;wayland-graphics-integration-client;wayland-decoration-client"
 
 "${LINUXDEPLOY}" \
   --appdir "${APPDIR}" \
@@ -90,10 +92,17 @@ export GST_REGISTRY_1_0="${XDG_CACHE_HOME:-$HOME/.cache}/v4l2-passthru-gst-regis
 EOF
 chmod +x "${APPDIR}/apprun-hooks/gstreamer-env.sh"
 
-# 6. Produce final AppImage
+# 6. Render PNG icon for AppImage metadata/.DirIcon and produce final AppImage
+if command -v rsvg-convert >/dev/null 2>&1; then
+  rsvg-convert -w 256 -h 256 "${ROOT_DIR}/assets/v4l2-passthru.svg" -o "${APPDIR}/v4l2-passthru.png"
+  cp -f "${APPDIR}/v4l2-passthru.png" "${APPDIR}/.DirIcon"
+else
+  ln -sf usr/share/icons/hicolor/scalable/apps/v4l2-passthru.svg "${APPDIR}/.DirIcon"
+fi
+
 export LDAI_OUTPUT="${OUT_DIR}/v4l2-passthru-${VERSION}-x86_64.AppImage"
 export OUTPUT="${LDAI_OUTPUT}"
-export VERSION="${VERSION}"
+export LINUXDEPLOY_OUTPUT_VERSION="${VERSION}"
 (cd "${OUT_DIR}" && "${LINUXDEPLOY}" --appdir "${APPDIR}" --output appimage)
 
 if [[ ! -f "${LDAI_OUTPUT}" ]]; then
