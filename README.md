@@ -1,12 +1,12 @@
-<p align="left">
-  <img src="assets/v4l2-passthru.svg" width="72" alt="V4L2 Passthru icon" />
+<p align="center">
+  <img src="assets/v4l2-passthru.svg" width="96" alt="V4L2 Passthru icon" />
 </p>
 
-# V4L2 Passthru
+<h1 align="center">V4L2 Passthru</h1>
 
 **V4L2 Passthru** is a low-latency C++20 / Qt6 / QML desktop passthrough viewer for USB V4L2/UVC video capture devices and their accompanying USB audio inputs on Linux.
 
-It lets you play or monitor external video sources directly on your desktop with minimal buffering while maintaining a **persistent Wayland/X11 window** and a **named PipeWire/PulseAudio audio stream**, making it easy to share via screen-sharing apps or capture cleanly in broadcasting tools.
+It lets you play and stream **game consoles**, cameras, or other external video sources directly through your PC with minimal buffering while maintaining a **persistent Wayland/X11 window** and a **named PipeWire/PulseAudio audio stream**, making it easy to share via screen-sharing apps or capture cleanly in broadcasting tools.
 
 ## Example Screenshot
 
@@ -103,23 +103,6 @@ QT_QPA_PLATFORM=offscreen ./build/v4l2-passthru --smoke-test 5
 ```
 
 ---
-
-## Releasing (GitHub Actions)
-
-The workflow in [`.github/workflows/release.yml`](.github/workflows/release.yml) runs **only when a semantic version tag is pushed** (e.g., `v0.1.0`):
-
-```bash
-git tag -a v0.1.0 -m "Release v0.1.0"
-git push origin v0.1.0
-```
-
-It builds the Arch `pacman` `.pkg.tar.zst` package inside `archlinux:latest`, generates a `.sha256` file, and creates a GitHub Release with install instructions and attached binaries.
-
-## GitHub Topics (Discoverability)
-
-Recommended GitHub repository topics:
-
-`v4l2` `uvc` `capture-card` `video-capture` `passthrough` `qt6` `qml` `cpp20` `gstreamer` `pipewire` `wayland` `linux` `archlinux` `low-latency`
 
 ## License
 
