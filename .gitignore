@@ -1,10 +1,16 @@
 build/
 build-flatpak/
+build-appimage/
+dist-arch/
+dist-flatpak/
+dist-appimage/
 .flatpak-builder/
 repo/
+AppDir/
 *.pkg.tar.zst
 *.pkg.tar.zst.*
 *.flatpak
+*.AppImage
 *.tar.gz
 *.sha256
 .cache/

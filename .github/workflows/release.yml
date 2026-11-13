@@ -94,8 +94,46 @@ jobs:
           name: flatpak-artifacts
           path: dist-flatpak/*
 
+  build-appimage:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v4
+
+      - name: Install system build and GStreamer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build pkg-config curl patchelf libfuse2 \
+            libgl1-mesa-dev libegl1-mesa-dev libxkbcommon-dev libxcb-cursor0 \
+            libudev-dev libasound2-dev libpulse-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-pipewire
+
+      - name: Install Qt 6.8 with QtMultimedia
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: 'linux'
+          target: 'desktop'
+          arch: 'gcc_64'
+          modules: 'qtmultimedia'
+
+      - name: Build AppImage
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          chmod +x packaging/appimage/build-appimage.sh
+          ./packaging/appimage/build-appimage.sh "${VERSION}" dist-appimage
+
+      - name: Upload AppImage build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: appimage-artifacts
+          path: dist-appimage/*
+
   publish-release:
-    needs: [build-arch-package, build-flatpak]
+    needs: [build-arch-package, build-flatpak, build-appimage]
     runs-on: ubuntu-latest
 
     steps:
@@ -123,6 +161,9 @@ jobs:
 
           flatpak_pkg = f"v4l2-passthru-{ver}-x86_64.flatpak"
           flatpak_sha = f"v4l2-passthru-{ver}-x86_64.flatpak.sha256"
+
+          appimage_pkg = f"v4l2-passthru-{ver}-x86_64.AppImage"
+          appimage_sha = f"v4l2-passthru-{ver}-x86_64.AppImage.sha256"
 
           notes = textwrap.dedent(f"""\
           ## V4L2 Passthru {tag}
@@ -168,9 +209,19 @@ jobs:
              flatpak run io.github.covarianttensor.V4L2Passthru
              ```
 
+          ### AppImage (Portable Binary)
+
+          ```bash
+          curl -LO "https://github.com/{repo}/releases/download/{tag}/{appimage_pkg}"
+          curl -LO "https://github.com/{repo}/releases/download/{tag}/{appimage_sha}"
+          sha256sum -c "{appimage_sha}"
+          chmod +x "./{appimage_pkg}"
+          ./"{appimage_pkg}"
+          ```
+
           ### Build from Source
 
-          See the [README](https://github.com/{repo}/blob/{tag}/README.md#option-4-build-from-source-cmake) for manual CMake and `makepkg` build instructions.
+          See the [README](https://github.com/{repo}/blob/{tag}/README.md#option-5-build-from-source-cmake) for manual CMake and `makepkg` build instructions.
           """)
 
           with open("/tmp/release-notes.md", "w", encoding="utf-8") as f:

@@ -85,7 +85,20 @@ flatpak-builder --user --install --force-clean build-flatpak \
   packaging/flatpak/io.github.covarianttensor.V4L2Passthru.yaml
 ```
 
-### Option 3: Build an Arch Package Locally (`makepkg`)
+### Option 3: AppImage (Portable Binary)
+
+Prebuilt `.AppImage` binaries are published on **[GitHub Releases](../../releases)**:
+
+```bash
+# Verify checksum and make the AppImage executable:
+sha256sum -c v4l2-passthru-*-x86_64.AppImage.sha256
+chmod +x v4l2-passthru-*-x86_64.AppImage
+
+# Run:
+./v4l2-passthru-*-x86_64.AppImage
+```
+
+### Option 4: Build an Arch Package Locally (`makepkg`)
 
 ```bash
 git clone https://github.com/covarianttensor/v4l2-passthru.git
@@ -93,7 +106,7 @@ cd v4l2-passthru
 makepkg -si
 ```
 
-### Option 4: Build from Source (CMake)
+### Option 5: Build from Source (CMake)
 
 Install dependencies on Arch Linux:
 
