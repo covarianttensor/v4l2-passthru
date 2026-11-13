@@ -111,7 +111,7 @@ jobs:
       - name: Create GitHub Release and upload Arch package
         uses: softprops/action-gh-release@v2
         with:
-          name: "V4L2 Passthru ${GITHUB_REF_NAME}"
+          name: "V4L2 Passthru ${{ github.ref_name }}"
           body_path: /tmp/release-notes.md
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
