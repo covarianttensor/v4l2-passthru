@@ -1,6 +1,6 @@
 # Maintainer: covarianttensor <covarianttensor@users.noreply.github.com>
 pkgname=v4l2-passthru
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc='Low-latency V4L2 video and PipeWire/PulseAudio audio passthrough viewer'
 arch=('x86_64')
