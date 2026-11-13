@@ -104,9 +104,12 @@ jobs:
       - name: Install system build and GStreamer dependencies
         run: |
           sudo apt-get update
+          # GitHub's ubuntu-22.04 image pre-installs slotted LLVM libunwind-*-dev packages
+          # that conflict with Ubuntu's libunwind-dev required by libgstreamer1.0-dev.
+          sudo apt-get remove -y 'libunwind-*-dev' || true
           sudo apt-get install -y \
             build-essential cmake ninja-build pkg-config curl patchelf libfuse2 \
-            libgl1-mesa-dev libegl1-mesa-dev libxkbcommon-dev libxcb-cursor0 \
+            libgl1-mesa-dev libegl1-mesa-dev libxkbcommon-dev libxkbcommon-x11-0 libxcb-cursor0 \
             libudev-dev libasound2-dev libpulse-dev \
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-pipewire
