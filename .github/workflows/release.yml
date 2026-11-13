@@ -1,4 +1,4 @@
-name: Build & Release Arch Package
+name: Build & Release Packages
 
 on:
   push:
@@ -32,14 +32,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Configure git safe.directory and extract version
+      - name: Build Arch pacman package with makepkg
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           VERSION="${GITHUB_REF_NAME#v}"
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
-      - name: Build Arch pacman package with makepkg
-        run: |
           useradd -m builder
           mkdir -p /build/pkg /build/out
           git archive --format=tar.gz --prefix="v4l2-passthru-${VERSION}/" HEAD \
@@ -58,64 +55,133 @@ jobs:
           cp /build/pkg/*.pkg.tar.zst /build/out/
           cp "/build/pkg/v4l2-passthru-${VERSION}.tar.gz" /build/out/
           (cd /build/out && sha256sum *.pkg.tar.zst > "v4l2-passthru-${VERSION}-x86_64.pkg.tar.zst.sha256")
-          PKG_FILE=$(basename /build/out/*.pkg.tar.zst)
-          echo "PKG_FILE=$PKG_FILE" >> "$GITHUB_ENV"
+          mkdir -p dist-arch
+          cp /build/out/* dist-arch/
+
+      - name: Upload Arch build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: arch-artifacts
+          path: dist-arch/*
+
+  build-flatpak:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v4
+
+      - name: Install Flatpak tools and KDE 6.11 runtime/SDK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install -y --user --noninteractive flathub org.kde.Platform//6.11 org.kde.Sdk//6.11
+
+      - name: Build Flatpak bundle
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist-flatpak
+          flatpak-builder --user --disable-rofiles-fuse --repo=repo --force-clean \
+            build-flatpak packaging/flatpak/io.github.covarianttensor.V4L2Passthru.yaml
+          flatpak build-bundle repo "dist-flatpak/v4l2-passthru-${VERSION}-x86_64.flatpak" \
+            io.github.covarianttensor.V4L2Passthru
+          (cd dist-flatpak && sha256sum *.flatpak > "v4l2-passthru-${VERSION}-x86_64.flatpak.sha256")
+
+      - name: Upload Flatpak build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-artifacts
+          path: dist-flatpak/*
+
+  publish-release:
+    needs: [build-arch-package, build-flatpak]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
 
       - name: Prepare release notes with install instructions
         run: |
           python3 -c '
-          import os, textwrap
+          import glob, os, textwrap
 
           repo = "${{ github.repository }}"
           tag = os.environ["GITHUB_REF_NAME"]
-          ver = os.environ["VERSION"]
-          pkg = os.environ["PKG_FILE"]
-          sha_file = f"v4l2-passthru-{ver}-x86_64.pkg.tar.zst.sha256"
+          ver = tag.removeprefix("v")
+
+          arch_pkgs = sorted(
+              os.path.basename(p) for p in glob.glob("release-assets/*.pkg.tar.zst")
+              if "-debug-" not in os.path.basename(p)
+          )
+          arch_pkg = arch_pkgs[0] if arch_pkgs else f"v4l2-passthru-{ver}-1-x86_64.pkg.tar.zst"
+          arch_sha = f"v4l2-passthru-{ver}-x86_64.pkg.tar.zst.sha256"
+
+          flatpak_pkg = f"v4l2-passthru-{ver}-x86_64.flatpak"
+          flatpak_sha = f"v4l2-passthru-{ver}-x86_64.flatpak.sha256"
 
           notes = textwrap.dedent(f"""\
           ## V4L2 Passthru {tag}
 
-          Low-latency C++20 / Qt6 / QML desktop passthrough viewer for USB V4L2/UVC video capture cards and PipeWire/PulseAudio audio streams.
+          Low-latency C++20 / Qt6 / QML desktop passthrough viewer for USB V4L2/UVC video capture devices and PipeWire/PulseAudio audio streams.
 
           ### Arch Linux Installation (`pacman`)
 
-          1. Download `{pkg}` and `{sha_file}` from the release assets below (or via `curl`):
+          1. Download `{arch_pkg}` and `{arch_sha}` (or via `curl`):
 
              ```bash
-             curl -LO "https://github.com/{repo}/releases/download/{tag}/{pkg}"
-             curl -LO "https://github.com/{repo}/releases/download/{tag}/{sha_file}"
-             sha256sum -c "{sha_file}"
+             curl -LO "https://github.com/{repo}/releases/download/{tag}/{arch_pkg}"
+             curl -LO "https://github.com/{repo}/releases/download/{tag}/{arch_sha}"
+             sha256sum -c "{arch_sha}" --ignore-missing
              ```
 
-          2. Install with `pacman` (automatically resolves Qt6, GStreamer, PipeWire, and ALSA dependencies):
+          2. Install with `pacman`:
 
              ```bash
-             sudo pacman -U "./{pkg}"
+             sudo pacman -U "./{arch_pkg}"
              ```
 
-          3. Launch from your application menu (**V4L2 Passthru**) or terminal:
+          ### Flatpak Installation (Any Linux Distro)
+
+          1. Ensure Flathub is configured (needed once for the `org.kde.Platform//6.11` runtime):
 
              ```bash
-             v4l2-passthru
+             flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+             ```
+
+          2. Download and install the `.flatpak` bundle:
+
+             ```bash
+             curl -LO "https://github.com/{repo}/releases/download/{tag}/{flatpak_pkg}"
+             curl -LO "https://github.com/{repo}/releases/download/{tag}/{flatpak_sha}"
+             sha256sum -c "{flatpak_sha}"
+             flatpak install --user -y "./{flatpak_pkg}"
+             ```
+
+          3. Run:
+
+             ```bash
+             flatpak run io.github.covarianttensor.V4L2Passthru
              ```
 
           ### Build from Source
 
-          See the [README](https://github.com/{repo}/blob/{tag}/README.md#option-3-build-from-source-cmake) for manual CMake and `makepkg` build instructions.
+          See the [README](https://github.com/{repo}/blob/{tag}/README.md#option-4-build-from-source-cmake) for manual CMake and `makepkg` build instructions.
           """)
 
           with open("/tmp/release-notes.md", "w", encoding="utf-8") as f:
               f.write(notes)
           '
 
-      - name: Create GitHub Release and upload Arch package
+      - name: Create GitHub Release and upload packages
         uses: softprops/action-gh-release@v2
         with:
           name: "V4L2 Passthru ${{ github.ref_name }}"
           body_path: /tmp/release-notes.md
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
-          files: |
-            /build/out/*.pkg.tar.zst
-            /build/out/*.sha256
-            /build/out/*.tar.gz
+          files: release-assets/*

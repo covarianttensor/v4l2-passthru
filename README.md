@@ -62,7 +62,30 @@ sha256sum -c v4l2-passthru-*-x86_64.pkg.tar.zst.sha256
 sudo pacman -U ./v4l2-passthru-*-x86_64.pkg.tar.zst
 ```
 
-### Option 2: Build an Arch Package Locally (`makepkg`)
+### Option 2: Flatpak Bundle (Any Linux Distro)
+
+Prebuilt `.flatpak` bundles are published alongside the Arch packages on **[GitHub Releases](../../releases)**:
+
+```bash
+# Ensure Flathub is configured once for the org.kde.Platform//6.11 runtime:
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+# Verify checksum and install the bundle:
+sha256sum -c v4l2-passthru-*-x86_64.flatpak.sha256
+flatpak install --user -y ./v4l2-passthru-*-x86_64.flatpak
+
+# Run:
+flatpak run io.github.covarianttensor.V4L2Passthru
+```
+
+To build the Flatpak locally with `flatpak-builder`:
+
+```bash
+flatpak-builder --user --install --force-clean build-flatpak \
+  packaging/flatpak/io.github.covarianttensor.V4L2Passthru.yaml
+```
+
+### Option 3: Build an Arch Package Locally (`makepkg`)
 
 ```bash
 git clone https://github.com/covarianttensor/v4l2-passthru.git
@@ -70,7 +93,7 @@ cd v4l2-passthru
 makepkg -si
 ```
 
-### Option 3: Build from Source (CMake)
+### Option 4: Build from Source (CMake)
 
 Install dependencies on Arch Linux:
 

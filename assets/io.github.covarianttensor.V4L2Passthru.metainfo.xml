@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.covarianttensor.V4L2Passthru</id>
+  <name>V4L2 Passthru</name>
+  <summary>Low-latency V4L2 video and audio passthrough viewer</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <developer id="io.github.covarianttensor">
+    <name>covarianttensor</name>
+  </developer>
+  <description>
+    <p>
+      V4L2 Passthru is a low-latency Qt6/QML and GStreamer desktop passthrough viewer for USB V4L2/UVC video capture devices and their accompanying USB audio inputs on Linux.
+    </p>
+    <p>
+      Play and stream game consoles, cameras, or other external video sources directly on your PC with minimal buffering while keeping a persistent Wayland/X11 window and named PipeWire/PulseAudio stream for screen sharing or broadcasting.
+    </p>
+    <ul>
+      <li>Direct YUYV 4:2:2 and MJPG video capture up to 1080p60 via v4l2src</li>
+      <li>Low-latency PipeWire/PulseAudio audio passthrough with live mute and volume</li>
+      <li>Automatic stall watchdog and USB reset recovery without closing the window</li>
+      <li>Auto-hiding HUD controls during active playback</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.covarianttensor.V4L2Passthru.desktop</launchable>
+  <url type="homepage">https://github.com/covarianttensor/v4l2-passthru</url>
+  <url type="bugtracker">https://github.com/covarianttensor/v4l2-passthru/issues</url>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/covarianttensor/v4l2-passthru/main/assets/screenshot.png</image>
+      <caption>V4L2 Passthru window with floating HUD</caption>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="0.1.0" date="2026-11-12" />
+  </releases>
+</component>

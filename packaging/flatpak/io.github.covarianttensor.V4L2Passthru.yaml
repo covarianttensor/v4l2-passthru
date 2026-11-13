@@ -1,0 +1,24 @@
+app-id: io.github.covarianttensor.V4L2Passthru
+runtime: org.kde.Platform
+runtime-version: '6.11'
+sdk: org.kde.Sdk
+command: v4l2-passthru
+rename-desktop-file: v4l2-passthru.desktop
+rename-icon: v4l2-passthru
+
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=all
+  - --socket=pulseaudio
+  - --filesystem=xdg-run/pipewire-0
+
+modules:
+  - name: v4l2-passthru
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+    sources:
+      - type: dir
+        path: ../..

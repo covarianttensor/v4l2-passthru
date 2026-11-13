@@ -64,3 +64,7 @@ install(FILES assets/v4l2-passthru.svg
 install(FILES assets/v4l2-passthru.desktop
     DESTINATION share/applications
 )
+
+install(FILES assets/io.github.covarianttensor.V4L2Passthru.metainfo.xml
+    DESTINATION share/metainfo
+)

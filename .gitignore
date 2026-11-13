@@ -1,6 +1,10 @@
 build/
+build-flatpak/
+.flatpak-builder/
+repo/
 *.pkg.tar.zst
 *.pkg.tar.zst.*
+*.flatpak
 *.tar.gz
 *.sha256
 .cache/
