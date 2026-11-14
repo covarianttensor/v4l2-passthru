@@ -4,8 +4,10 @@
 #include <gst/gst.h>
 #include <gst/video/video.h>
 
+#include <QDateTime>
 #include <QDebug>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QMetaObject>
 #include <QSettings>
 #include <QVariantMap>
@@ -219,6 +221,27 @@ void CaptureController::setPixelFormat(const QString &format)
     }
 }
 
+QString CaptureController::resolutionMode() const { return m_resolutionMode; }
+
+void CaptureController::setResolutionMode(const QString &mode)
+{
+    QString normalized = QStringLiteral("1080p");
+    if (mode.compare(QStringLiteral("720p"), Qt::CaseInsensitive) == 0) {
+        normalized = QStringLiteral("720p");
+    } else if (mode.compare(QStringLiteral("auto"), Qt::CaseInsensitive) == 0) {
+        normalized = QStringLiteral("auto");
+    }
+    if (m_resolutionMode == normalized) {
+        return;
+    }
+    m_resolutionMode = normalized;
+    saveSettings();
+    emit settingsChanged();
+    if (m_wantRunning) {
+        reconnectNow();
+    }
+}
+
 int CaptureController::fps() const { return m_fps; }
 
 void CaptureController::setFps(int fps)
@@ -374,6 +397,12 @@ void CaptureController::loadSettings()
     if (m_pixelFormat != QStringLiteral("MJPG")) {
         m_pixelFormat = QStringLiteral("YUYV");
     }
+    const QString resMode = s.value(QStringLiteral("resolutionMode"), QStringLiteral("1080p")).toString();
+    if (resMode == QStringLiteral("720p") || resMode == QStringLiteral("auto")) {
+        m_resolutionMode = resMode;
+    } else {
+        m_resolutionMode = QStringLiteral("1080p");
+    }
     m_fps = s.value(QStringLiteral("fps"), 60).toInt();
     if (m_fps != 30 && m_fps != 50 && m_fps != 60) {
         m_fps = 60;
@@ -386,10 +415,14 @@ void CaptureController::loadSettings()
 
 void CaptureController::saveSettings() const
 {
+    if (!m_persistSettings) {
+        return;
+    }
     QSettings s(QStringLiteral("v4l2-passthru"), QStringLiteral("v4l2-passthru"));
     s.setValue(QStringLiteral("videoDevice"), m_selectedVideoDevice);
     s.setValue(QStringLiteral("audioSource"), m_selectedAudioSource);
     s.setValue(QStringLiteral("pixelFormat"), m_pixelFormat);
+    s.setValue(QStringLiteral("resolutionMode"), m_resolutionMode);
     s.setValue(QStringLiteral("fps"), m_fps);
     s.setValue(QStringLiteral("audioEnabled"), m_audioEnabled);
     s.setValue(QStringLiteral("muted"), m_muted);
@@ -415,20 +448,25 @@ bool CaptureController::startVideoPipeline()
         targetDev = m_videoDevices.first().devicePath;
     }
 
+    QString resCaps;
+    if (m_resolutionMode == QStringLiteral("1080p")) {
+        resCaps = QStringLiteral(",width=1920,height=1080,framerate=%1/1").arg(m_fps);
+    } else if (m_resolutionMode == QStringLiteral("720p")) {
+        resCaps = QStringLiteral(",width=1280,height=720,framerate=%1/1").arg(m_fps);
+    }
+
     const QString pipelineDesc = (m_pixelFormat == QStringLiteral("MJPG"))
         ? QStringLiteral(
             "v4l2src device=\"%1\" io-mode=mmap ! "
-            "image/jpeg,width=1920,height=1080,framerate=%2/1 ! "
+            "image/jpeg%2 ! "
             "jpegdec ! video/x-raw,format=I420 ! "
             "appsink name=vsink emit-signals=true max-buffers=1 drop=true sync=false")
-              .arg(targetDev)
-              .arg(m_fps)
+              .arg(targetDev, resCaps)
         : QStringLiteral(
             "v4l2src device=\"%1\" io-mode=mmap ! "
-            "video/x-raw,format=YUY2,width=1920,height=1080,framerate=%2/1 ! "
+            "video/x-raw,format=YUY2%2 ! "
             "appsink name=vsink emit-signals=true max-buffers=1 drop=true sync=false")
-              .arg(targetDev)
-              .arg(m_fps);
+              .arg(targetDev, resCaps);
 
     GError *err = nullptr;
     m_videoPipeline = gst_parse_launch(pipelineDesc.toUtf8().constData(), &err);
@@ -663,10 +701,21 @@ void CaptureController::processAppSinkSample(GstAppSink *appsink)
                 qframe.setStartTime(us);
             }
 
+            const qint64 nowSteady = steadyNowMs();
+            const qint64 nowEpoch = QDateTime::currentMSecsSinceEpoch();
+
             m_activeWidth.store(width);
             m_activeHeight.store(height);
-            m_lastFrameSteadyMs.store(steadyNowMs());
+            m_lastFrameSteadyMs.store(nowSteady);
             m_frameCounter.fetch_add(1);
+
+            {
+                std::lock_guard<std::mutex> lock(m_frameMutex);
+                m_latestFrame = qframe;
+                ++m_latestFrameSeq;
+                m_latestFrameSteadyMs = nowSteady;
+                m_latestFrameEpochMs = nowEpoch;
+            }
 
             std::lock_guard<std::mutex> lock(m_sinkMutex);
             if (m_videoSink) {
@@ -802,4 +851,59 @@ void CaptureController::setStatus(bool streaming, bool reconnecting, const QStri
     m_statusText = status;
     m_errorDetail = detail;
     emit stateChanged();
+}
+
+qint64 CaptureController::steadyClockNowMs()
+{
+    return steadyNowMs();
+}
+
+void CaptureController::setPersistSettings(bool persist)
+{
+    m_persistSettings = persist;
+}
+
+FrameSnapshot CaptureController::latestFrameSnapshot() const
+{
+    std::lock_guard<std::mutex> lock(m_frameMutex);
+    return FrameSnapshot{m_latestFrame, m_latestFrameSeq, m_latestFrameSteadyMs, m_latestFrameEpochMs};
+}
+
+QJsonObject CaptureController::statusSnapshot() const
+{
+    const FrameSnapshot snap = latestFrameSnapshot();
+    const qint64 now = steadyNowMs();
+    const qint64 ageMs = (snap.steadyMs > 0) ? (now - snap.steadyMs) : -1;
+
+    QJsonArray devs;
+    for (const auto &dev : m_videoDevices) {
+        QJsonObject d;
+        d.insert(QStringLiteral("devicePath"), dev.devicePath);
+        d.insert(QStringLiteral("displayName"), dev.displayName);
+        d.insert(QStringLiteral("vendorId"), dev.vendorId);
+        d.insert(QStringLiteral("productId"), dev.productId);
+        d.insert(QStringLiteral("isPreferred"), dev.isPreferred);
+        devs.append(d);
+    }
+
+    QJsonObject obj;
+    obj.insert(QStringLiteral("wantRunning"), m_wantRunning);
+    obj.insert(QStringLiteral("streaming"), m_streaming);
+    obj.insert(QStringLiteral("reconnecting"), m_reconnecting);
+    obj.insert(QStringLiteral("statusText"), m_statusText);
+    obj.insert(QStringLiteral("audioStatus"), m_audioStatus);
+    obj.insert(QStringLiteral("errorDetail"), m_errorDetail);
+    obj.insert(QStringLiteral("activeResolution"), m_activeResolution);
+    obj.insert(QStringLiteral("measuredFps"), m_measuredFps);
+    obj.insert(QStringLiteral("pixelFormat"), m_pixelFormat);
+    obj.insert(QStringLiteral("resolutionMode"), m_resolutionMode);
+    obj.insert(QStringLiteral("fpsSetting"), m_fps);
+    obj.insert(QStringLiteral("reconnectCount"), m_reconnectCount);
+    obj.insert(QStringLiteral("selectedVideoDevice"), m_selectedVideoDevice);
+    obj.insert(QStringLiteral("frameSeq"), static_cast<qint64>(snap.seq));
+    obj.insert(QStringLiteral("hasFrame"), snap.frame.isValid());
+    obj.insert(QStringLiteral("lastFrameAgeMs"), ageMs);
+    obj.insert(QStringLiteral("lastFrameEpochMs"), snap.epochMs);
+    obj.insert(QStringLiteral("videoDevices"), devs);
+    return obj;
 }

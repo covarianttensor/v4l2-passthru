@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-VERSION="${1:-0.1.1}"
+VERSION="${1:-0.2.0}"
 OUT_DIR_ARG="${2:-${ROOT_DIR}/dist-appimage}"
 mkdir -p "${OUT_DIR_ARG}"
 OUT_DIR="$(cd "${OUT_DIR_ARG}" && pwd)"

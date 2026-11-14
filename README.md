@@ -140,6 +140,43 @@ QT_QPA_PLATFORM=offscreen ./build/v4l2-passthru --smoke-test 5
 
 ---
 
+## Autonomous On-Glass Inspection (MCP Server)
+
+`v4l2-passthru` includes a built-in stdio **Model Context Protocol (MCP)** server (`--mcp`) and live Unix-socket IPC (`--headless` / `--socket <path>`) so AI agents can inspect the raw HDMI video feed without contending for `/dev/video*`:
+
+* **Live GUI attachment**: When `v4l2-passthru` (or `v4l2-passthru --headless`) is running, it listens on `$XDG_RUNTIME_DIR/v4l2-passthru.sock`. Running `v4l2-passthru --mcp` attaches to the running instance for zero-HUD frame grabs at native capture resolution.
+* **Headless fallback**: If no GUI or `--headless` daemon is running, `--mcp` automatically opens the preferred capture device (`VC-003`) on demand (with audio disabled) and releases `/dev/video*` after 90 seconds of inactivity or via `control_capture(action="release")`.
+* **Optional OCR support**: Install `tesseract` and `tesseract-data-eng` (e.g., `sudo pacman -S tesseract tesseract-data-eng`) to enable `ocr_screen` and `ocr: true` on frame grabs and bursts.
+
+### MCP Tools
+
+| Tool | Purpose |
+| --- | --- |
+| `get_status` | Pipeline state, resolution, measured FPS, reconnect count, frame age, and V4L2 devices |
+| `grab_frame` | Raw HDMI frame as an MCP image (`png`/`jpeg`, `crop`, `maxWidth`, `savePath`, optional `ocr`) |
+| `ocr_screen` | Run local Tesseract OCR on the current frame (`crop`, `invert`, `psm`) |
+| `wait_for_change` | Wait until screen pixels change past `changeThreshold` + `settleMs` and return the settled frame |
+| `wait_for_signal` | Wait for HDMI capture state to become `streaming` or `lost` across reboots/mode switches |
+| `capture_burst` | Record a deduplicated timeline of changed frames (`durationMs`, `intervalMs`, optional `outputDir` + `manifest.json`) |
+| `control_capture` | `reconnect`, `refresh_devices`, `set_device`, `set_format` (`YUYV`/`MJPG`), `set_fps` (`30`/`50`/`60`), `set_resolution` (`1080p`/`720p`/`auto`), or `release` |
+
+### `mcp_config.json` Example
+
+For an installed Arch Linux / system package (`/usr/bin/v4l2-passthru`):
+
+```json
+{
+  "mcpServers": {
+    "v4l2-passthru": {
+      "command": "/usr/bin/v4l2-passthru",
+      "args": ["--mcp"]
+    }
+  }
+}
+```
+
+---
+
 ## License
 
 This project is licensed under the **GNU General Public License v3.0 (GPLv3)** — see [`LICENSE`](LICENSE) for the full text.

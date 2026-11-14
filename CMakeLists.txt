@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.21)
-project(v4l2-passthru VERSION 0.1.1 LANGUAGES CXX)
+project(v4l2-passthru VERSION 0.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Quick Qml Multimedia QuickControls2)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Quick Qml Multimedia QuickControls2 Network)
 find_package(PkgConfig REQUIRED)
 
 pkg_check_modules(GSTREAMER REQUIRED IMPORTED_TARGET
@@ -25,10 +25,20 @@ qt_add_executable(v4l2-passthru
     src/DeviceDiscovery.cpp
     src/CaptureController.h
     src/CaptureController.cpp
+    src/InspectionEngine.h
+    src/InspectionEngine.cpp
+    src/IpcServer.h
+    src/IpcServer.cpp
+    src/McpServer.h
+    src/McpServer.cpp
 )
 
 target_include_directories(v4l2-passthru PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_compile_definitions(v4l2-passthru PRIVATE
+    V4L2_PASSTHRU_VERSION="${PROJECT_VERSION}"
 )
 
 qt_add_qml_module(v4l2-passthru
@@ -47,6 +57,7 @@ target_link_libraries(v4l2-passthru PRIVATE
     Qt6::Qml
     Qt6::Multimedia
     Qt6::QuickControls2
+    Qt6::Network
     PkgConfig::GSTREAMER
     PkgConfig::UDEV
     PkgConfig::ALSA

@@ -2,9 +2,11 @@
 
 #include "DeviceDiscovery.h"
 
+#include <QJsonObject>
 #include <QObject>
 #include <QTimer>
 #include <QVariantList>
+#include <QVideoFrame>
 #include <QVideoSink>
 #include <QQmlEngine>
 
@@ -13,6 +15,13 @@
 
 struct _GstElement;
 struct _GstAppSink;
+
+struct FrameSnapshot {
+    QVideoFrame frame;
+    quint64 seq = 0;
+    qint64 steadyMs = 0;
+    qint64 epochMs = 0;
+};
 
 class CaptureController : public QObject
 {
@@ -28,6 +37,7 @@ class CaptureController : public QObject
     Q_PROPERTY(QString selectedAudioSource READ selectedAudioSource WRITE setSelectedAudioSource NOTIFY selectedAudioSourceChanged)
 
     Q_PROPERTY(QString pixelFormat READ pixelFormat WRITE setPixelFormat NOTIFY settingsChanged)
+    Q_PROPERTY(QString resolutionMode READ resolutionMode WRITE setResolutionMode NOTIFY settingsChanged)
     Q_PROPERTY(int fps READ fps WRITE setFps NOTIFY settingsChanged)
 
     Q_PROPERTY(bool audioEnabled READ audioEnabled WRITE setAudioEnabled NOTIFY audioSettingsChanged)
@@ -63,6 +73,9 @@ public:
     QString pixelFormat() const;
     void setPixelFormat(const QString &format);
 
+    QString resolutionMode() const;
+    void setResolutionMode(const QString &mode);
+
     int fps() const;
     void setFps(int fps);
 
@@ -94,6 +107,12 @@ public:
 
     // Called from GStreamer appsink streaming thread.
     void processAppSinkSample(_GstAppSink *appsink);
+
+    // Thread-safe snapshot of the most recent captured video frame and pipeline status.
+    FrameSnapshot latestFrameSnapshot() const;
+    QJsonObject statusSnapshot() const;
+    static qint64 steadyClockNowMs();
+    void setPersistSettings(bool persist);
 
 signals:
     void videoSinkChanged();
@@ -131,11 +150,13 @@ private:
     QString m_selectedVideoDevice; // empty = auto-select preferred VC-003
     QString m_selectedAudioSource; // empty = auto-select preferred VC-003
     QString m_pixelFormat = QStringLiteral("YUYV");
+    QString m_resolutionMode = QStringLiteral("1080p");
     int m_fps = 60;
     bool m_audioEnabled = true;
     bool m_muted = false;
     double m_volume = 1.0;
     bool m_autoReconnect = true;
+    bool m_persistSettings = true;
 
     bool m_wantRunning = false;
     bool m_streaming = false;
@@ -150,6 +171,12 @@ private:
 
     QVideoSink *m_videoSink = nullptr;
     mutable std::mutex m_sinkMutex;
+
+    QVideoFrame m_latestFrame;
+    quint64 m_latestFrameSeq = 0;
+    qint64 m_latestFrameSteadyMs = 0;
+    qint64 m_latestFrameEpochMs = 0;
+    mutable std::mutex m_frameMutex;
 
     _GstElement *m_videoPipeline = nullptr;
     _GstElement *m_audioPipeline = nullptr;

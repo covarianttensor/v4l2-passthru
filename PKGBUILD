@@ -1,6 +1,6 @@
 # Maintainer: covarianttensor <covarianttensor@users.noreply.github.com>
 pkgname=v4l2-passthru
-pkgver=0.1.1
+pkgver=0.2.0
 pkgrel=1
 pkgdesc='Low-latency V4L2 video and PipeWire/PulseAudio audio passthrough viewer'
 arch=('x86_64')
@@ -19,6 +19,10 @@ depends=(
     'qt6-multimedia-ffmpeg'
     'qt6-svg'
     'systemd-libs'
+)
+optdepends=(
+    'tesseract: local OCR text extraction via --mcp'
+    'tesseract-data-eng: English OCR language pack for tesseract'
 )
 makedepends=(
     'cmake'
